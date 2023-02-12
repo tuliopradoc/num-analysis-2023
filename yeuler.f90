@@ -43,7 +43,7 @@ program yeuler
 
     do i = 1, n
         y = y + h*(P*real(exp(c*x), dp) + Q*real(exp(k*x), dp))
-        x = x + real(i, dp)*h
+        x = a + real(i, dp)*h
         array_x = [array_x, x]
         array_y = [array_y, y]
     end do
