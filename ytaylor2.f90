@@ -42,7 +42,7 @@ program ytaylor2
 
     do i = 1, n
         y = y + h*T2(x)
-        x = x + real(i, dp)*h
+        x = a + real(i, dp)*h
         array_x = [array_x, x]
         array_y = [array_y, y]
     end do
@@ -59,10 +59,7 @@ program ytaylor2
 
     contains
 
-    real(dp) function T2(point) 
-        use, intrinsic :: iso_fortran_env, only : dp => real64
-        implicit none
-
+    real(dp) function T2(point)
         real(dp), intent(in) :: point
         real(dp) ::  f1, f2, f3, l, df
     
