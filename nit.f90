@@ -1,11 +1,12 @@
 program nit
     implicit none
 
-    integer :: n, i, j
+    integer :: n, i, j, k
     real(8) :: N_cells, I_cells, T_cells, h, x, g, p
     real(8) :: NIT_arr(3), NIT_matrix(3,1), NIT_matrix_transp(1,3), c1x3(1,3), c1x1(1,1), c3x3(3,3), temp(3,1), NIT_temp(3,1)
-    real(8) :: NIT_3x3(3,3,3), NIT_1x3(3,1,3), NIT_1x1(3,1,1), f(3,1,1), NIT_matrices(240,3,1)
+    real(8) :: NIT_3x3(3,3,3), NIT_1x3(3,1,3), NIT_1x1(3,1,1), f(3,1,1)
     real(8) :: N_arr_3x3(9), I_arr_3x3(9), T_arr_3x3(9), N_arr_1x3(3), I_arr_1x3(3), T_arr_1x3(3) 
+    real(8), allocatable :: NIT_matrices(:), NIT_csv(:,:)
     
     N_cells = 1d0; I_cells = 1.22d0; T_cells = 1d0
     
@@ -13,6 +14,10 @@ program nit
     n = 240            ! iterations
     
     NIT_arr = [N_cells, I_cells, T_cells]
+    
+    allocate(NIT_csv(3,n + 1))
+    allocate(NIT_matrices(3*n + 3))
+    NIT_matrices = NIT_arr                              ! array to create .csv file
 
     NIT_matrix = reshape(NIT_arr, shape(NIT_matrix))                    ! 3x1 matrix
     NIT_matrix_transp = transpose(NIT_matrix)                           ! 1x3 matrix
@@ -40,22 +45,36 @@ program nit
     NIT_1x1(2,:,:) = reshape([0.7d0], shape(c1x1))          ! 1x1 constant matrices 
     NIT_1x1(3,:,:) = reshape([0d0], shape(c1x1))
 
+    ! Applying Euler's method
 
     do i = 1, n
         do j = 1, 3
             temp = matmul(NIT_3x3(j,:,:), NIT_matrix)
             f(j,:,:) = matmul(NIT_matrix_transp, temp) + matmul(NIT_1x3(j,:,:), NIT_matrix) + NIT_1x1(j,:,:)
             NIT_temp(j,1) = NIT_matrix(j,1) + h*f(j,1,1)
+            NIT_matrices = [NIT_matrices, NIT_temp(j,1)]
         end do
         NIT_matrix = NIT_temp
         NIT_matrix_transp = transpose(NIT_temp)
-        NIT_matrices(i,:,:) = NIT_matrix
         NIT_3x3(2,2,1) = 0.2710d0/(0.8130d0+NIT_matrix(1,1)) - 0.8130d0            ! calculating p and g to use in the next iteration
         NIT_3x3(2,3,2) = 0.7829d0/(0.8620d0+NIT_matrix(3,1)) - 0.3634d0
         x = h*real(i, kind = 8)
     end do
+    
+    NIT_csv = reshape(NIT_matrices, shape(NIT_csv))         ! matrix to generate the .csv file
 
-    print *, NIT_matrices(1,:,:)
-    print *, NIT_matrices(2,:,:)
-    print *, NIT_matrices(240,:,:)
+    101 format(1x, *(g0, :, ", ")) 
+    
+    ! Open connection (i.e. create file where to write)
+
+    open(unit = 10, access = "sequential", action = "write", &
+         status = "replace", file = "data.csv", form = "formatted") 
+
+    ! Loop across rows
+
+    do k=1,3
+       write(10, 101) NIT_csv(k,:)
+    end do 
+    ! Close connection
+    close(10)
 end program nit
