@@ -24,11 +24,11 @@ program project2
     print *, 'T, Q, M, E, D e G '
     read *, T, Q, M, E, D, G
 
-    call generate_matrices(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
+    call generate_matrices_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
 
 end program project2
 
-subroutine generate_matrices(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
+subroutine generate_matrices_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
     integer :: i, j, k, p
     integer, intent(in) :: n_x, n_y
     real(8), intent(in) :: a, b, c, h, l, T, Q, M, E, D, G
@@ -59,6 +59,7 @@ subroutine generate_matrices(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
     call generate_actions_matrix()
     call generate_stiffness_matrix()
     call matrices_to_csv()
+    call solve_system()
     
     contains
     subroutine generate_actions_matrix()
@@ -102,32 +103,89 @@ subroutine generate_matrices(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
             end do
         end do
     end subroutine generate_stiffness_matrix
+    
+    subroutine solve_system()
+        real(8), allocatable :: U(:)
+    	interface
+    		subroutine solve_linear_system(A, b, x, n)
+  	    		implicit none
+  	    		integer, intent(in) :: n
+            	real(8), intent(in) :: A(n,n), b(n)
+  	    		real(8), intent(out) :: x(n)
+  	    		integer :: ipiv(n), info, k
+  		    end subroutine solve_linear_system
+    	end interface
+    	
+    	! solutions vector/matrix
+    	
+    	allocate(U(p))
+    	
+    	! solving the linear system using solve_linear_system subroutine
+    	
+    	call solve_linear_system(S, F, U, p)
+    	
+    end subroutine solve_system
 
     subroutine matrices_to_csv()
         101 format(1x, *(g0, :, ", ")) 
-    
-    ! Open connection (i.e. create file where to write)
 
-        open(unit = 10, access = "sequential", action = "write", &
-         status = "replace", file = "S_matrix.csv", form = "formatted") 
-
-    ! Loop across rows
-
-        do k=1, p
+    	open(unit = 10, access = "sequential", action = "write", & 
+        status = "replace", file = "S_matrix.csv", form = "formatted") 
+    	do k=1, p 
             write(10, 101) S(k,:)
-        end do 
-    ! Close connection
-        close(10)
+    	end do 
+    	close(10)
 
-        open(unit = 11, access = "sequential", action = "write", &
-         status = "replace", file = "F_matrix.csv", form = "formatted") 
-
-    ! Loop across rows
-
+    	open(unit = 11, access = "sequential", action = "write", &
+    	status = "replace", file = "F_matrix.csv", form = "formatted") 
         do k=1, p
             write(11, 101) F(k,:)
         end do 
-    ! Close connection
         close(11)
+        
+        
+  	    open(unit = 12, access = "sequential", action = "write", &
+        status = "replace", file = "solutions.csv", form = "formatted") 
+  	    do k=1, n
+            write(12, 101) U(k)
+  	    end do 
+        close(12)
     end subroutine matrices_to_csv
-end subroutine generate_matrices
+end subroutine generate_matrices_and_solve
+
+subroutine solve_linear_system(A, b, x, n)
+  implicit none
+  integer, intent(in) :: n
+  real(8), intent(in) :: A(n,n), b(n)
+  real(8), intent(out) :: x(n)
+  integer :: ipiv(n), info, k
+
+  ! Make a copy of the input matrix A and vector b
+  
+  real(8) :: A_copy(n,n), b_copy(n)
+  A_copy = A
+  b_copy = b
+
+  ! Compute the LU factorization of A_copy
+  
+  call dgetrf(n, n, A_copy, n, ipiv, info)
+
+  if (info /= 0) then
+    print*, "Error: Matrix is singular"
+    stop
+  end if
+
+  ! Solve the system using the LU factorization and backward substitution
+  
+  call dgetrs('N', n, 1, A_copy, n, ipiv, b_copy, n, info)
+
+  if (info /= 0) then
+    print*, "Error: Failed to solve system"
+    stop
+  end if
+
+  ! Copy the solution to the output vector x
+  
+  x = b_copy
+end subroutine solve_linear_system
+
