@@ -4,14 +4,14 @@ program project2
     real(8) :: a, b, c, l, h, T, Q, M, E, D, G
 
     interface
-        subroutine generate_matrices(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
+        subroutine generate_matrices_partials_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
             implicit none
             integer :: i, j, k, p, w, n, r
             integer, intent(in) :: n_x, n_y
             real(8), intent(in) :: a, b, c, h, l, T, Q, M, E, D, G
             real(8) :: h_x, h_y, Hx, Hy, A_x, B_y, C_xy, D_xy
             real(8), allocatable :: S(:,:), x(:), y(:), F(:,:), U(:), partial_x(:), partial_y(:)
-        end subroutine generate_matrices
+        end subroutine generate_matrices_partials_and_solve
     end interface
 
     ! Getting data from user
@@ -25,40 +25,38 @@ program project2
     print *, 'T, Q, M, E, D e G '
     read *, T, Q, M, E, D, G
 
-    call generate_matrices_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
-    
-
+    call generate_matrices_partials_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
 end program project2
 
-subroutine generate_matrices_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
+subroutine generate_matrices_partials_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
     implicit none
     integer :: i, j, k, p, w, n, r
     integer, intent(in) :: n_x, n_y
     real(8), intent(in) :: a, b, c, h, l, T, Q, M, E, D, G
     real(8) :: h_x, h_y, Hx, Hy, A_x, B_y, C_xy, D_xy
     real(8), allocatable :: S(:,:), x(:), y(:), F(:,:), U(:), partial_x(:), partial_y(:)
-    
+
     h_x = 2d0*l/real(n_x, kind=8)
     h_y = 2d0*h/real(n_y, kind=8)
     Hx = 2*real(h_x, kind=8)
     Hy = 2*real(h_y, kind=8)
     p = (n_x-1)*(n_y-1)
     A_x = a/(h_x)**2
-    B_y = 2d0*b/(h_y)**2
-    C_xy = c/(4d0*h_x*h_y)
-    D_xy = -A_x - B_y
+    B_y = c/(h_y)**2
+    C_xy = b/(2d0*h_x*h_y)
+    D_xy = 2d0*(-A_x - B_y)
 
     allocate(x(n_x-1))
     allocate(y(n_y-1))
 
     ! Generating interior mesh poitns:
-
+    
     do i = 1, n_x-1
-        x(i) = -h + h_x*real(i, kind=8) 
+        x(i) = -l + h_x*real(i, kind=8) 
     end do
 
     do j = 1, n_y-1
-        y(j) = -l + h_y*real(j, kind=8) 
+        y(j) = -h + h_y*real(j, kind=8) 
     end do
 
     call generate_actions_matrix()
@@ -66,11 +64,13 @@ subroutine generate_matrices_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
     call solve_system_for_U()
     call calculate_partial_x_and_y()
     call matrices_to_csv()
-    
+
+    deallocate(S, x, y, F, U, partial_x, partial_y)
+
     contains
     subroutine generate_actions_matrix()
         allocate(F(p,1))
-    
+
         do j = 1, n_y-1
             do i = 1, n_x-1
                 k = (n_x-1)*(j-1) + i
@@ -94,24 +94,44 @@ subroutine generate_matrices_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
     subroutine  generate_stiffness_matrix()
         allocate(S(p, p))
         S = 0d0
-    
         do j = 1, n_y-1
             do i = 1, n_x-1
                 k = (n_x-1)*(j-1) + i
-                if ( i > 1 ) then
-                S(k, k-1) = A_x
-                S(k, n_x + k-2) = -C_xy
-                end if
+                
                 S(k,k) = D_xy
-                S(k, n_x + k) = C_xy
-                S(k,k+1) = A_x
-                S(k, n_x + k-1) = B_y
+                
+                if ( k+1 <= p ) then
+                    S(k, k+1) = A_x
+                end if
+
+                if ( n_x+k-1 <= p ) then
+                    S(k, n_x+k-1) = B_y
+                end if
+                
+                if ( n_x+k <= p ) then
+                    S(k, n_x+k) = C_xy
+                end if
+                
+                if ( i>1 .and. k-1<=p ) then
+                    S(k, k-1) = A_x
+                end if
+                
+                if ( i>1 .and. n_x+k-2<=p ) then
+                    S(k, n_x+k-2) = -C_xy
+                end if
+                
+                if ( j>1 ) then
+                    S(k, k-n_x+1) = B_y
+                    S(k, k-n_x+2) = -C_xy
+                    if ( i>1 ) then
+                        S(k, k-n_x) = C_xy
+                    end if
+                end if
             end do
         end do
     end subroutine generate_stiffness_matrix
     
     subroutine solve_system_for_U()
-        !real(8), allocatable :: U(:)
         interface
             subroutine solve_linear_system(A, b, x, n)
                 implicit none
@@ -133,13 +153,10 @@ subroutine generate_matrices_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
     end subroutine solve_system_for_U
 
     subroutine calculate_partial_x_and_y()
-        
         allocate(partial_x(p), partial_y(p))
+        partial_x(p) = 0d0
+        partial_y(p) = 0d0
 
-        partial_x = 0d0
-        partial_y = 0d0
-    
-    
         do j = 1, n_y-1
             do k = 1, p
                 r = k - (n_x-1)*(j-1)
@@ -218,8 +235,22 @@ subroutine generate_matrices_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
             write(14, 101) partial_y(k)
         end do 
         close(14)
+
+        open(unit = 15, access = "sequential", action = "write", &
+        status = "replace", file = "x_arr.csv", form = "formatted") 
+        do k=1, n_x-1
+            write(15, 101) x(k)
+        end do 
+        close(15)
+
+        open(unit = 16, access = "sequential", action = "write", &
+        status = "replace", file = "y_arr.csv", form = "formatted") 
+        do k=1, n_y-1
+            write(16, 101) y(k)
+        end do 
+        close(16)
     end subroutine matrices_to_csv
-end subroutine generate_matrices_and_solve
+end subroutine generate_matrices_partials_and_solve
 
 subroutine solve_linear_system(A, b, x, n)
   implicit none
@@ -256,5 +287,3 @@ subroutine solve_linear_system(A, b, x, n)
   
   x = b_copy
 end subroutine solve_linear_system
-
-
