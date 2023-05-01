@@ -4,14 +4,14 @@ program project2
     real(8) :: a, b, c, l, h, T, Q, M, E, D, G
 
     interface
-        subroutine generate_matrices_partials_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
+        subroutine solve_project2(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
             implicit none
             integer :: i, j, k, p, w, n, r
             integer, intent(in) :: n_x, n_y
             real(8), intent(in) :: a, b, c, h, l, T, Q, M, E, D, G
             real(8) :: h_x, h_y, Hx, Hy, A_x, B_y, C_xy, D_xy
-            real(8), allocatable :: S(:,:), x(:), y(:), F(:,:), U(:), partial_x(:), partial_y(:)
-        end subroutine generate_matrices_partials_and_solve
+            real(8), allocatable :: S(:,:), x(:), x_arr(:), y(:), y_arr(:), F(:,:), U(:), partial_x(:), partial_y(:)
+        end subroutine solve_project2
     end interface
 
     ! Getting data from user
@@ -25,16 +25,16 @@ program project2
     print *, 'T, Q, M, E, D e G '
     read *, T, Q, M, E, D, G
 
-    call generate_matrices_partials_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
+    call solve_project2(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
 end program project2
 
-subroutine generate_matrices_partials_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
+subroutine solve_project2(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
     implicit none
     integer :: i, j, k, p, w, n, r
     integer, intent(in) :: n_x, n_y
     real(8), intent(in) :: a, b, c, h, l, T, Q, M, E, D, G
     real(8) :: h_x, h_y, Hx, Hy, A_x, B_y, C_xy, D_xy
-    real(8), allocatable :: S(:,:), x(:), y(:), F(:,:), U(:), partial_x(:), partial_y(:)
+    real(8), allocatable :: S(:,:), x(:), x_arr(:), y(:), y_arr(:), F(:,:), U(:), partial_x(:), partial_y(:)
 
     h_x = 2d0*l/real(n_x, kind=8)
     h_y = 2d0*h/real(n_y, kind=8)
@@ -46,8 +46,8 @@ subroutine generate_matrices_partials_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
     C_xy = b/(2d0*h_x*h_y)
     D_xy = 2d0*(-A_x - B_y)
 
-    allocate(x(n_x-1))
-    allocate(y(n_y-1))
+    allocate(x(n_x-1), x_arr(n_x+1))
+    allocate(y(n_y-1), y_arr(n_y+1))
 
     ! Generating interior mesh poitns:
     
@@ -57,6 +57,16 @@ subroutine generate_matrices_partials_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
 
     do j = 1, n_y-1
         y(j) = -h + h_y*real(j, kind=8) 
+    end do
+
+    ! Generating all mesh points to plot the surface in python
+
+    do i = 1, n_x+1
+        x_arr(i) = -l + h_x*real(i-1, kind=8) 
+    end do
+
+    do j = 1, n_y+1
+        y_arr(j) = -h + h_y*real(j-1, kind=8) 
     end do
 
     call generate_actions_matrix()
@@ -237,20 +247,34 @@ subroutine generate_matrices_partials_and_solve(n_x,n_y,h,l,a,b,c,T,Q,M,E,D,G)
         close(14)
 
         open(unit = 15, access = "sequential", action = "write", &
-        status = "replace", file = "x_arr.csv", form = "formatted") 
+        status = "replace", file = "x.csv", form = "formatted") 
         do k=1, n_x-1
             write(15, 101) x(k)
         end do 
         close(15)
 
         open(unit = 16, access = "sequential", action = "write", &
-        status = "replace", file = "y_arr.csv", form = "formatted") 
+        status = "replace", file = "y.csv", form = "formatted") 
         do k=1, n_y-1
             write(16, 101) y(k)
         end do 
         close(16)
+
+        open(unit = 17, access = "sequential", action = "write", &
+        status = "replace", file = "x_arr.csv", form = "formatted") 
+        do k=1, n_x+1
+            write(17, 101) x_arr(k)
+        end do 
+        close(17)
+
+        open(unit = 18, access = "sequential", action = "write", &
+        status = "replace", file = "y_arr.csv", form = "formatted") 
+        do k=1, n_y+1
+            write(18, 101) y_arr(k)
+        end do 
+        close(18)
     end subroutine matrices_to_csv
-end subroutine generate_matrices_partials_and_solve
+end subroutine solve_project2
 
 subroutine solve_linear_system(A, b, x, n)
   implicit none
